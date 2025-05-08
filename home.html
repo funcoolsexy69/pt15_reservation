@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>예약 시스템</title>
+  <style>
+    body { font-family: sans-serif; background: #f5f5f5; }
+    .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px #0001; }
+    h2 { text-align: center; }
+    .times { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .time-btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      background: #eee;
+      color: #333;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .time-btn.selected {
+      background: #1976d2;
+      color: #fff;
+    }
+    .result { margin-top: 24px; font-weight: bold; text-align: center; }
+    .form-group { margin: 12px 0; }
+    label { display: block; margin-bottom: 4px; }
+    input, textarea, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 1em;
+    }
+    textarea { resize: vertical; }
+    .submit-btn {
+      width: 100%;
+      padding: 10px;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 1.1em;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    .submit-btn:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+    .success { color: green; margin-top: 16px; text-align: center; }
+
+    /* 모달 스타일 */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0; top: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal {
+      background: #fff;
+      padding: 24px 20px;
+      border-radius: 10px;
+      max-width: 350px;
+      width: 100%;
+      box-shadow: 0 2px 16px #0003;
+      position: relative;
+      animation: modalIn 0.2s;
+    }
+    @keyframes modalIn {
+      from { transform: translateY(40px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-close {
+      position: absolute;
+      right: 12px; top: 10px;
+      background: none;
+      border: none;
+      font-size: 1.3em;
+      cursor: pointer;
+      color: #888;
+    }
+    .modal h3 { margin-top: 0; text-align: center; }
+    .modal .form-group { margin: 10px 0; }
+    .modal .submit-btn { margin-top: 10px; }
+    .modal .success { color: green; margin-top: 10px; }
+    .account-info {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 0.98em;
+    }
+    .onsite-info {
+      background: #f9f9e3;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 0.98em;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>예약 시스템</h2>
+    <form id="reservation-form" autocomplete="off">
+      <div class="form-group">
+        <label for="name">이름</label>
+        <input type="text" id="name" required />
+      </div>
+      <div class="form-group">
+        <label for="phone">연락처</label>
+        <input type="tel" id="phone" required placeholder="010-1234-5678" pattern="^01[0-9]-\d{3,4}-\d{4}$" />
+      </div>
+      <div class="form-group">
+        <label for="date">날짜 선택</label>
+        <input type="date" id="date" min="" required />
+      </div>
+      <div id="time-section" style="display:none;">
+        <label style="margin-top:16px; display:block;">시간대 선택</label>
+        <div class="times" id="times"></div>
+      </div>
+      <div class="form-group">
+        <label for="memo">메모 (선택)</label>
+        <textarea id="memo" rows="2" placeholder="요청사항을 입력하세요"></textarea>
+      </div>
+      <button type="submit" class="submit-btn" id="submit-btn" disabled>예약하기</button>
+    </form>
+    <div class="result" id="result"></div>
+    <div class="success" id="success"></div>
+  </div>
+
+  <!-- 결제 모달 -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+      <button class="modal-close" id="modal-close" title="닫기">&times;</button>
+      <h3>결제 방법 선택</h3>
+      <form id="payment-form" autocomplete="off">
+        <div class="form-group">
+          <label for="pay-method">결제 방법</label>
+          <select id="pay-method" required>
+            <option value="card">카드 결제</option>
+            <option value="bank">계좌 이체</option>
+            <option value="onsite">만나서 결제</option>
+          </select>
+        </div>
+        <div id="card-section">
+          <div class="form-group">
+            <label for="cardnum">카드 번호</label>
+            <input type="text" id="cardnum" maxlength="19" placeholder="1234-5678-9012-3456" required />
+          </div>
+          <div class="form-group">
+            <label for="expiry">유효기간</label>
+            <input type="text" id="expiry" maxlength="5" placeholder="MM/YY" required />
+          </div>
+          <div class="form-group">
+            <label for="cvc">CVC</label>
+            <input type="text" id="cvc" maxlength="4" placeholder="123" required />
+          </div>
+        </div>
+        <div id="bank-section" style="display:none;">
+          <div class="account-info">
+            <strong>입금 계좌:</strong><br>
+            국민은행 123456-78-901234<br>
+            예금주: 홍길동
+          </div>
+          <div class="form-group">
+            <label for="depositor">입금자명</label>
+            <input type="text" id="depositor" maxlength="20" placeholder="입금자명을 입력하세요" />
+          </div>
+        </div>
+        <div id="onsite-section" style="display:none;">
+          <div class="onsite-info">
+            <strong>만나서 결제 안내</strong><br>
+            예약하신 시간에 방문하셔서 현장에서 결제해 주세요.<br>
+            (현금/카드 모두 가능)
+          </div>
+        </div>
+        <button type="submit" class="submit-btn">결제하기</button>
+        <div class="success" id="payment-success"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // 오늘 날짜를 min으로 설정
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('date').min = `${yyyy}-${mm}-${dd}`;
+
+    const dateInput = document.getElementById('date');
+    const timeSection = document.getElementById('time-section');
+    const timesDiv = document.getElementById('times');
+    const resultDiv = document.getElementById('result');
+    const form = document.getElementById('reservation-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const successDiv = document.getElementById('success');
+    let selectedTime = null;
+
+    // 시간대 버튼 생성 함수
+    function renderTimeButtons() {
+      timesDiv.innerHTML = '';
+      for (let hour = 9; hour <= 21; hour++) {
+        let label = '';
+        if (hour < 12) label = `오전 ${hour}시`;
+        else if (hour === 12) label = `오후 12시`;
+        else label = `오후 ${hour - 12}시`;
+
+        const btn = document.createElement('button');
+        btn.className = 'time-btn';
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.dataset.value = hour;
+        btn.onclick = function() {
+          document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedTime = hour;
+          showResult();
+          checkFormValid();
+        };
+        timesDiv.appendChild(btn);
+      }
+    }
+
+    // 날짜 선택 시 시간대 표시
+    dateInput.addEventListener('change', function() {
+      if (dateInput.value) {
+        timeSection.style.display = '';
+        renderTimeButtons();
+        selectedTime = null;
+        resultDiv.textContent = '';
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+      } else {
+        timeSection.style.display = 'none';
+        resultDiv.textContent = '';
+        selectedTime = null;
+      }
+      checkFormValid();
+    });
+
+    // 입력값이 바뀔 때마다 예약 버튼 활성화 체크
+    form.addEventListener('input', checkFormValid);
+
+    function checkFormValid() {
+      const name = document.getElementById('name').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const date = dateInput.value;
+      const phoneValid = /^01[0-9]-\d{3,4}-\d{4}$/.test(phone);
+      if (name && phoneValid && date && selectedTime) {
+        submitBtn.disabled = false;
+      } else {
+        submitBtn.disabled = true;
+      }
+    }
+
+    // 결과 표시
+    function showResult() {
+      if (dateInput.value && selectedTime) {
+        const dateStr = dateInput.value;
+        const hour = selectedTime;
+        let label = '';
+        if (hour < 12) label = `오전 ${hour}시`;
+        else if (hour === 12) label = `오후 12시`;
+        else label = `오후 ${hour - 12}시`;
+        resultDiv.textContent = `예약 날짜: ${dateStr} / 예약 시간: ${label}`;
+      } else {
+        resultDiv.textContent = '';
+      }
+    }
+
+    // 결제 모달 관련
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    const modalClose = document.getElementById('modal-close');
+    const paymentForm = document.getElementById('payment-form');
+    const paymentSuccess = document.getElementById('payment-success');
+    const payMethod = document.getElementById('pay-method');
+    const cardSection = document.getElementById('card-section');
+    const bankSection = document.getElementById('bank-section');
+    const onsiteSection = document.getElementById('onsite-section');
+    const depositorInput = document.getElementById('depositor');
+
+    function openModal() {
+      modalBackdrop.classList.add('active');
+      paymentForm.reset();
+      paymentSuccess.textContent = '';
+      cardSection.style.display = '';
+      bankSection.style.display = 'none';
+      onsiteSection.style.display = 'none';
+      payMethod.value = 'card';
+      // required 속성 초기화
+      document.getElementById('cardnum').required = true;
+      document.getElementById('expiry').required = true;
+      document.getElementById('cvc').required = true;
+      depositorInput.required = false;
+    }
+    function closeModal() {
+      modalBackdrop.classList.remove('active');
+    }
+    modalClose.onclick = closeModal;
+    modalBackdrop.onclick = function(e) {
+      if (e.target === modalBackdrop) closeModal();
+    };
+
+    // 결제 방법 변경 시
+    payMethod.addEventListener('change', function() {
+      if (payMethod.value === 'card') {
+        cardSection.style.display = '';
+        bankSection.style.display = 'none';
+        onsiteSection.style.display = 'none';
+        document.getElementById('cardnum').required = true;
+        document.getElementById('expiry').required = true;
+        document.getElementById('cvc').required = true;
+        depositorInput.required = false;
+      } else if (payMethod.value === 'bank') {
+        cardSection.style.display = 'none';
+        bankSection.style.display = '';
+        onsiteSection.style.display = 'none';
+        document.getElementById('cardnum').required = false;
+        document.getElementById('expiry').required = false;
+        document.getElementById('cvc').required = false;
+        depositorInput.required = true;
+      } else if (payMethod.value === 'onsite') {
+        cardSection.style.display = 'none';
+        bankSection.style.display = 'none';
+        onsiteSection.style.display = '';
+        document.getElementById('cardnum').required = false;
+        document.getElementById('expiry').required = false;
+        document.getElementById('cvc').required = false;
+        depositorInput.required = false;
+      }
+    });
+
+    // 예약 폼 제출 시 결제 모달 띄우기
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      openModal();
+    });
+
+    // 결제 폼 제출 시
+    paymentForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (payMethod.value === 'card') {
+        paymentSuccess.textContent = "카드 결제가 완료되었습니다! 감사합니다.";
+      } else if (payMethod.value === 'bank') {
+        const depositor = depositorInput.value.trim();
+        if (!depositor) {
+          paymentSuccess.textContent = "입금자명을 입력하세요.";
+          return;
+        }
+        paymentSuccess.textContent = "계좌이체 예약이 완료되었습니다! 입금 확인 후 처리됩니다.";
+      } else if (payMethod.value === 'onsite') {
+        paymentSuccess.textContent = "현장 결제 예약이 완료되었습니다! 방문 시 결제해 주세요.";
+      }
+      setTimeout(() => {
+        closeModal();
+        // 예약 폼 초기화
+        form.reset();
+        timeSection.style.display = 'none';
+        resultDiv.textContent = '';
+        selectedTime = null;
+        submitBtn.disabled = true;
+        successDiv.textContent = "예약 및 결제가 완료되었습니다!";
+        setTimeout(() => { successDiv.textContent = ''; }, 5000);
+      }, 1200);
+    });
+  </script>
+</body>
+</html>
