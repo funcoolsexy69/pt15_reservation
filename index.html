@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>예약 시스템</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xtal(크리스탈) - IT 프로그래밍 전문가 서비스</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: sans-serif; background: #f5f5f5; }
-    .container { max-width: 400px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px #0001; }
-    h2 { text-align: center; }
+    body { font-family: 'Noto Sans KR', sans-serif; }
+    /* 예약 시스템 스타일 */
+    .reservation-container { max-width: 400px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
     .times { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .time-btn {
       padding: 8px 12px;
@@ -18,10 +21,14 @@
       transition: background 0.2s;
     }
     .time-btn.selected {
-      background: #1976d2;
+      background: #FF1EEE;
       color: #fff;
     }
-    .result { margin-top: 24px; font-weight: bold; text-align: center; }
+    .time-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .result { margin-top: 24px; font-weight: bold; text-center; }
     .form-group { margin: 12px 0; }
     label { display: block; margin-bottom: 4px; }
     input, textarea, select {
@@ -36,7 +43,7 @@
     .submit-btn {
       width: 100%;
       padding: 10px;
-      background: #1976d2;
+      background: #FF1EEE;
       color: #fff;
       border: none;
       border-radius: 4px;
@@ -49,7 +56,6 @@
       cursor: not-allowed;
     }
     .success { color: green; margin-top: 16px; text-align: center; }
-
     /* 모달 스타일 */
     .modal-backdrop {
       display: none;
@@ -67,7 +73,7 @@
       border-radius: 10px;
       max-width: 350px;
       width: 100%;
-      box-shadow: 0 2px 16px #0003;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.2);
       position: relative;
       animation: modalIn 0.2s;
     }
@@ -103,99 +109,411 @@
       font-size: 0.98em;
       color: #555;
     }
+    /* 커스텀 날짜 선택기 스타일 */
+    .custom-date-picker {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+    }
+    .date-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    .calendar {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 300px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 1000;
+      padding: 10px;
+    }
+    .calendar.active {
+      display: block;
+    }
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .calendar-header button {
+      background: none;
+      border: none;
+      font-size: 1.2em;
+      cursor: pointer;
+      padding: 5px 10px;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+    .calendar-grid div {
+      text-align: center;
+      padding: 5px;
+      cursor: pointer;
+    }
+    .calendar-grid div:hover {
+      background: #f0f0f0;
+    }
+    .calendar-grid div.selected {
+      background: #1976d2;
+      color: white;
+    }
+    .calendar-grid div.disabled {
+      color: #ccc;
+      cursor: not-allowed;
+    }
   </style>
 </head>
-<body>
-  <div class="container">
-    <h2>예약 시스템</h2>
-    <form id="reservation-form" autocomplete="off">
-      <div class="form-group">
-        <label for="name">이름</label>
-        <input type="text" id="name" required />
-      </div>
-      <div class="form-group">
-        <label for="phone">연락처</label>
-        <input type="tel" id="phone" required placeholder="010-1234-5678" pattern="^01[0-9]-\d{3,4}-\d{4}$" />
-      </div>
-      <div class="form-group">
-        <label for="date">날짜 선택</label>
-        <input type="date" id="date" min="" required />
-      </div>
-      <div id="time-section" style="display:none;">
-        <label style="margin-top:16px; display:block;">시간대 선택</label>
-        <div class="times" id="times"></div>
-      </div>
-      <div class="form-group">
-        <label for="memo">메모 (선택)</label>
-        <textarea id="memo" rows="2" placeholder="요청사항을 입력하세요"></textarea>
-      </div>
-      <button type="submit" class="submit-btn" id="submit-btn" disabled>예약하기</button>
-    </form>
-    <div class="result" id="result"></div>
-    <div class="success" id="success"></div>
-  </div>
-
-  <!-- 결제 모달 -->
-  <div class="modal-backdrop" id="modal-backdrop">
-    <div class="modal">
-      <button class="modal-close" id="modal-close" title="닫기">&times;</button>
-      <h3>결제 방법 선택</h3>
-      <form id="payment-form" autocomplete="off">
-        <div class="form-group">
-          <label for="pay-method">결제 방법</label>
-          <select id="pay-method" required>
-            <option value="card">카드 결제</option>
-            <option value="bank">계좌 이체</option>
-            <option value="onsite">만나서 결제</option>
-          </select>
-        </div>
-        <div id="card-section">
-          <div class="form-group">
-            <label for="cardnum">카드 번호</label>
-            <input type="text" id="cardnum" maxlength="19" placeholder="1234-5678-9012-3456" required />
-          </div>
-          <div class="form-group">
-            <label for="expiry">유효기간</label>
-            <input type="text" id="expiry" maxlength="5" placeholder="MM/YY" required />
-          </div>
-          <div class="form-group">
-            <label for="cvc">CVC</label>
-            <input type="text" id="cvc" maxlength="4" placeholder="123" required />
-          </div>
-        </div>
-        <div id="bank-section" style="display:none;">
-          <div class="account-info">
-            <strong>입금 계좌:</strong><br>
-            국민은행: 400402-01-786617<br>
-            예금주: 이수정
-          </div>
-          <div class="form-group">
-            <label for="depositor">입금자명</label>
-            <input type="text" id="depositor" maxlength="20" placeholder="입금자명을 입력하세요" />
-          </div>
-        </div>
-        <div id="onsite-section" style="display:none;">
-          <div class="onsite-info">
-            <strong>만나서 결제 안내</strong><br>
-            예약하신 시간에 방문하셔서 현장에서 결제해 주세요.<br>
-            (현금/카드 모두 가능)
-          </div>
-        </div>
-        <button type="submit" class="submit-btn">결제하기</button>
-        <div class="success" id="payment-success"></div>
-      </form>
+<body class="bg-gray-100">
+  <!-- 헤더 -->
+  <header class="bg-white shadow-md">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="text-2xl font-bold" style="color: #FF1EEE;">Xtal</div>
+      <nav class="space-x-4">
+        <a href="#" class="text-gray-600 hover:text-[#FF1EEE]">홈</a>
+        <a href="#" class="text-gray-600 hover:text-[#FF1EEE]">서비스</a>
+        <a href="#" class="text-gray-600 hover:text-[#FF1EEE]">예약</a>
+        <a href="#" class="text-gray-600 hover:text-[#FF1EEE]">문의</a>
+      </nav>
     </div>
-  </div>
+  </header>
+
+  <!-- 히어로 섹션 -->
+  <section style="background: #FF1EEE;" class="text-white py-20">
+    <div class="container mx-auto px-4 text-center">
+      <h1 class="text-4xl md:text-5xl font-bold mb-4">실습중심 프로젝트 코딩</h1>
+      <p class="text-lg md:text-xl mb-8">AI 기술로 실제 문제를 해결하는 전문가 양성</p>
+      <a href="#" class="bg-white text-[#FF1EEE] px-6 py-3 rounded-full font-semibold hover:bg-gray-200">지금 시작하기</a>
+    </div>
+  </section>
+
+  <!-- 서비스 소개 -->
+  <section class="py-16">
+    <div class="container mx-auto px-4">
+      <h2 class="text-3xl font-bold text-center mb-12">우리의 서비스</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="bg-white p-6 rounded-lg shadow-md text-center">
+          <h3 class="text-xl font-semibold mb-4">합리적인 수강료</h3>
+          <p>투명한 비용으로 부담 없는 프로젝트를 시작하세요.</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md text-center">
+          <h3 class="text-xl font-semibold mb-4">AI 기반 분석</h3>
+          <p>최신 AI 기술로 최적의 프로그램을 설계합니다.</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md text-center">
+          <h3 class="text-xl font-semibold mb-4">전문 프로그래머</h3>
+          <p>경험 많은 전문가가 당신을 지원합니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 예약 및 결제 시스템 -->
+  <section class="bg-gray-200 py-16">
+    <div class="container mx-auto px-4">
+      <h2 class="text-3xl font-bold text-center mb-12">상담 예약 및 결제</h2>
+      <div class="reservation-container">
+        <h2 class="text-2xl font-bold text-center mb-6">예약 시스템</h2>
+        <form id="reservation-form" autocomplete="off">
+          <div class="form-group">
+            <label for="name">이름</label>
+            <input type="text" id="name" required />
+          </div>
+          <div class="form-group">
+            <label for="phone">연락처</label>
+            <input type="tel" id="phone" required placeholder="010-1234-5678" pattern="^01[0-1,6-9]-\d{3,4}-\d{4}$" />
+          </div>
+          <div class="form-group">
+            <label for="date">날짜 선택</label>
+            <div class="custom-date-picker">
+              <input type="text" id="date" class="date-input" placeholder="YYYY/MM/DD" required />
+              <div class="calendar" id="calendar">
+                <div class="calendar-header">
+                  <button type="button" id="prevMonth">&lt;</button>
+                  <span id="currentMonth"></span>
+                  <button type="button" id="nextMonth">&gt;</button>
+                </div>
+                <div class="calendar-grid" id="calendarGrid"></div>
+              </div>
+            </div>
+          </div>
+          <div id="time-section" style="display:none;">
+            <label style="margin-top:16px; display:block;">시간대 선택</label>
+            <div class="times" id="times"></div>
+          </div>
+          <div class="form-group">
+            <label for="memo">메모 (선택)</label>
+            <textarea id="memo" rows="2" placeholder="요청사항을 입력하세요"></textarea>
+          </div>
+          <button type="submit" class="submit-btn" id="submit-btn" disabled>예약하기</button>
+        </form>
+        <div class="result" id="result"></div>
+        <div class="success" id="success"></div>
+      </div>
+
+      <!-- 결제 모달 -->
+      <div class="modal-backdrop" id="modal-backdrop">
+        <div class="modal">
+          <button class="modal-close" id="modal-close" title="닫기">×</button>
+          <h3>결제 방법 선택</h3>
+          <form id="payment-form" autocomplete="off">
+            <div class="form-group">
+              <label for="pay-method">결제 방법</label>
+              <select id="pay-method" required>
+                <option value="card">카드 결제</option>
+                <option value="bank">계좌 이체</option>
+                <option value="onsite">만나서 결제</option>
+              </select>
+            </div>
+            <div id="card-section">
+              <div class="form-group">
+                <label for="cardnum">카드 번호</label>
+                <input type="text" id="cardnum" maxlength="19" placeholder="1234-5678-9012-3456" required />
+              </div>
+              <div class="form-group">
+                <label for="expiry">유효기간</label>
+                <input type="text" id="expiry" maxlength="5" placeholder="MM/YY" required />
+              </div>
+              <div class="form-group">
+                <label for="cvc">CVC</label>
+                <input type="text" id="cvc" maxlength="4" placeholder="123" required />
+              </div>
+            </div>
+            <div id="bank-section" style="display:none;">
+              <div class="account-info">
+                <strong>입금 계좌:</strong><br>
+                제주은행 777-100-630426<br>
+                예금주: 이수정
+              </div>
+              <div class="form-group">
+                <label for="depositor">입금자명</label>
+                <input type="text" id="depositor" maxlength="20" placeholder="입금자명을 입력하세요" />
+              </div>
+            </div>
+            <div id="onsite-section" style="display:none;">
+              <div class="onsite-info">
+                <strong>만나서 결제 안내</strong><br>
+                예약하신 시간에 방문하셔서 현장에서 결제해 주세요.<br>
+                (현금/카드 모두 가능)
+              </div>
+            </div>
+            <button type="submit" class="submit-btn">결제하기</button>
+            <div class="success" id="payment-success"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 푸터 -->
+  <footer style="background: #FF1EEE;" class="text-white py-8">
+    <div class="container mx-auto px-4 text-center">
+      <p>이메일: improve_s@naver.com | 문의 DM: funcoolsexy_official</p>
+      <p>운영시간: 평일 09:00 ~ 21:00 (점심 12:00 ~ 13:00)</p>
+      <p>Copyright ⓒ Xtal(크리스탈) </p>
+    </div>
+  </footer>
 
   <script>
-    // 오늘 날짜를 min으로 설정
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    document.getElementById('date').min = `${yyyy}-${mm}-${dd}`;
+    // 날짜 관련 변수
+    let currentDate = new Date();
+    let selectedDate = null;
 
-    const dateInput = document.getElementById('date');
+    // 달력 초기화
+    function initCalendar() {
+      const calendar = document.getElementById('calendar');
+      const dateInput = document.getElementById('date');
+      const calendarGrid = document.getElementById('calendarGrid');
+      const currentMonthSpan = document.getElementById('currentMonth');
+      const prevMonthBtn = document.getElementById('prevMonth');
+      const nextMonthBtn = document.getElementById('nextMonth');
+
+      // 달력 표시/숨김 토글
+      dateInput.addEventListener('click', () => {
+        calendar.classList.toggle('active');
+        updateCalendar();
+      });
+
+      // 이전 달
+      prevMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        updateCalendar();
+      });
+
+      // 다음 달
+      nextMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        updateCalendar();
+      });
+
+      // 달력 업데이트
+      function updateCalendar() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        
+        // 현재 월 표시
+        currentMonthSpan.textContent = `${year}년 ${month + 1}월`;
+
+        // 달력 그리드 초기화
+        calendarGrid.innerHTML = '';
+
+        // 요일 헤더
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        days.forEach(day => {
+          const dayElement = document.createElement('div');
+          dayElement.textContent = day;
+          calendarGrid.appendChild(dayElement);
+        });
+
+        // 첫 날의 요일
+        const firstDay = new Date(year, month, 1).getDay();
+        
+        // 이전 달의 마지막 날
+        const lastDate = new Date(year, month + 1, 0).getDate();
+        
+        // 이전 달의 날짜들
+        for (let i = 0; i < firstDay; i++) {
+          const dayElement = document.createElement('div');
+          dayElement.classList.add('disabled');
+          calendarGrid.appendChild(dayElement);
+        }
+
+        // 현재 달의 날짜들
+        for (let day = 1; day <= lastDate; day++) {
+          const dayElement = document.createElement('div');
+          dayElement.textContent = day;
+          
+          // 오늘 이전 날짜는 비활성화
+          const currentDay = new Date(year, month, day);
+          if (currentDay < new Date().setHours(0,0,0,0)) {
+            dayElement.classList.add('disabled');
+          } else {
+            dayElement.addEventListener('click', () => {
+              // 이전 선택 제거
+              document.querySelectorAll('.calendar-grid div.selected').forEach(el => {
+                el.classList.remove('selected');
+              });
+              
+              // 새 날짜 선택
+              dayElement.classList.add('selected');
+              selectedDate = new Date(year, month, day);
+              
+              // 입력 필드에 날짜 표시 (YYYY/MM/DD 형식)
+              const formattedDate = `${year}/${String(month + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+              dateInput.value = formattedDate;
+              
+              // 달력 닫기
+              calendar.classList.remove('active');
+              
+              // 시간대 표시
+              timeSection.style.display = '';
+              renderTimeButtons();
+              selectedTime = null;
+              resultDiv.textContent = '';
+              document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+              
+              // 예약된 시간대 불러오기
+              const reservedTimes = fetchReservedTimes(formattedDate);
+              document.querySelectorAll('.time-btn').forEach(btn => {
+                const hour = btn.dataset.value;
+                const timeStr = hour < 12 ? `오전 ${hour}시` : hour === 12 ? `오후 12시` : `오후 ${hour - 12}시`;
+                const isReserved = reservedTimes.some(item => item.time === timeStr);
+                btn.disabled = isReserved;
+                if (isReserved) btn.style.opacity = 0.5;
+              });
+              
+              checkFormValid();
+            });
+          }
+          
+          calendarGrid.appendChild(dayElement);
+        }
+      }
+
+      // 달력 외부 클릭 시 닫기
+      document.addEventListener('click', (e) => {
+        if (!calendar.contains(e.target) && e.target !== dateInput) {
+          calendar.classList.remove('active');
+        }
+      });
+
+      // 날짜 입력 필드에 이벤트 리스너 추가
+      dateInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, ''); // 숫자만 남기기
+        if (value.length > 0) {
+          if (value.length <= 4) {
+            value = value;
+          } else if (value.length <= 6) {
+            value = value.slice(0, 4) + '/' + value.slice(4);
+          } else {
+            value = value.slice(0, 4) + '/' + value.slice(4, 6) + '/' + value.slice(6, 8);
+          }
+        }
+        e.target.value = value;
+      });
+
+      // 날짜 입력 완료 시 유효성 검사
+      dateInput.addEventListener('blur', function(e) {
+        const value = e.target.value;
+        if (value) {
+          const parts = value.split('/');
+          if (parts.length === 3) {
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1;
+            const day = parseInt(parts[2]);
+            const date = new Date(year, month, day);
+            
+            // 유효한 날짜인지 확인
+            if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+              // 오늘 이전 날짜인지 확인
+              if (date < new Date().setHours(0,0,0,0)) {
+                e.target.value = '';
+                alert('오늘 이후의 날짜를 선택해주세요.');
+                return;
+              }
+              
+              // 날짜 선택 시 시간대 표시
+              timeSection.style.display = '';
+              renderTimeButtons();
+              selectedTime = null;
+              resultDiv.textContent = '';
+              document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+              
+              // 예약된 시간대 불러오기
+              const reservedTimes = fetchReservedTimes(value);
+              document.querySelectorAll('.time-btn').forEach(btn => {
+                const hour = btn.dataset.value;
+                const timeStr = hour < 12 ? `오전 ${hour}시` : hour === 12 ? `오후 12시` : `오후 ${hour - 12}시`;
+                const isReserved = reservedTimes.some(item => item.time === timeStr);
+                btn.disabled = isReserved;
+                if (isReserved) btn.style.opacity = 0.5;
+              });
+              
+              checkFormValid();
+            } else {
+              e.target.value = '';
+              alert('유효한 날짜를 입력해주세요.');
+            }
+          } else {
+            e.target.value = '';
+            alert('YYYY/MM/DD 형식으로 입력해주세요.');
+          }
+        }
+      });
+    }
+
+    // 예약 시스템 스크립트
     const timeSection = document.getElementById('time-section');
     const timesDiv = document.getElementById('times');
     const resultDiv = document.getElementById('result');
@@ -203,6 +521,16 @@
     const submitBtn = document.getElementById('submit-btn');
     const successDiv = document.getElementById('success');
     let selectedTime = null;
+
+    // 예약된 시간대를 불러오는 함수 (mock 데이터 사용)
+    function fetchReservedTimes(date) {
+      const mockReservedTimes = [
+        { date: "2024/06/01", time: "10:00" },
+        { date: "2024/06/01", time: "14:00" },
+        { date: "2024/06/02", time: "11:00" }
+      ];
+      return mockReservedTimes.filter(item => item.date === date);
+    }
 
     // 시간대 버튼 생성 함수
     function renderTimeButtons() {
@@ -229,30 +557,14 @@
       }
     }
 
-    // 날짜 선택 시 시간대 표시
-    dateInput.addEventListener('change', function() {
-      if (dateInput.value) {
-        timeSection.style.display = '';
-        renderTimeButtons();
-        selectedTime = null;
-        resultDiv.textContent = '';
-        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
-      } else {
-        timeSection.style.display = 'none';
-        resultDiv.textContent = '';
-        selectedTime = null;
-      }
-      checkFormValid();
-    });
-
     // 입력값이 바뀔 때마다 예약 버튼 활성화 체크
     form.addEventListener('input', checkFormValid);
 
     function checkFormValid() {
       const name = document.getElementById('name').value.trim();
       const phone = document.getElementById('phone').value.trim();
-      const date = dateInput.value;
-      const phoneValid = /^01[0-9]-\d{3,4}-\d{4}$/.test(phone);
+      const date = document.getElementById('date').value;
+      const phoneValid = /^01[0-1,6-9]-\d{3,4}-\d{4}$/.test(phone);
       if (name && phoneValid && date && selectedTime) {
         submitBtn.disabled = false;
       } else {
@@ -262,8 +574,8 @@
 
     // 결과 표시
     function showResult() {
-      if (dateInput.value && selectedTime) {
-        const dateStr = dateInput.value;
+      if (document.getElementById('date').value && selectedTime) {
+        const dateStr = document.getElementById('date').value;
         const hour = selectedTime;
         let label = '';
         if (hour < 12) label = `오전 ${hour}시`;
@@ -275,7 +587,6 @@
       }
     }
 
-    // 결제 모달 관련
     const modalBackdrop = document.getElementById('modal-backdrop');
     const modalClose = document.getElementById('modal-close');
     const paymentForm = document.getElementById('payment-form');
@@ -294,21 +605,21 @@
       bankSection.style.display = 'none';
       onsiteSection.style.display = 'none';
       payMethod.value = 'card';
-      // required 속성 초기화
       document.getElementById('cardnum').required = true;
       document.getElementById('expiry').required = true;
       document.getElementById('cvc').required = true;
       depositorInput.required = false;
     }
+
     function closeModal() {
       modalBackdrop.classList.remove('active');
     }
+
     modalClose.onclick = closeModal;
     modalBackdrop.onclick = function(e) {
       if (e.target === modalBackdrop) closeModal();
     };
 
-    // 결제 방법 변경 시
     payMethod.addEventListener('change', function() {
       if (payMethod.value === 'card') {
         cardSection.style.display = '';
@@ -337,13 +648,11 @@
       }
     });
 
-    // 예약 폼 제출 시 결제 모달 띄우기
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       openModal();
     });
 
-    // 결제 폼 제출 시
     paymentForm.addEventListener('submit', function(e) {
       e.preventDefault();
       if (payMethod.value === 'card') {
@@ -360,7 +669,6 @@
       }
       setTimeout(() => {
         closeModal();
-        // 예약 폼 초기화
         form.reset();
         timeSection.style.display = 'none';
         resultDiv.textContent = '';
@@ -370,6 +678,9 @@
         setTimeout(() => { successDiv.textContent = ''; }, 5000);
       }, 1200);
     });
+
+    // 달력 초기화
+    initCalendar();
   </script>
 </body>
 </html>
